@@ -33,10 +33,35 @@ Module.register('MMM-FTP-image', {
 
 	start: function () {
 		this.logMessage('Started.');
+		
+		config = this.config;
+		finishAllImgInCurrentDirectory = this.finishAllImgInCurrentDirectory;
+		startObj=this;
+		
+		document.addEventListener('keyup', function(eventObj){
+			if(eventObj.key == 'd')
+			{
+				startObj.sendSocketNotification('PRINT_LIST', {
+					host: config.host,
+					port: config.port,
+					user: config.user,
+					password: config.password,
+					secure: true,
+					secureOptions: { rejectUnauthorized: false },
+					defaultDirPath: config.defaultDirPath,
+					dirPathsAuthorized: config.dirPathsAuthorized,
+					finishAllImgInCurrentDirectory: finishAllImgInCurrentDirectory,
+					
+				});
+				console.log("test");
+			}
+		}, false);
 
 		if (!this.config.password) {
 			this.logMessage('The password is not entered !', 'error');
 		}
+		
+		this.imageDisplayedNumber=0;
 
 		this.getListImgNameFromFTPServer();
 	},
@@ -46,6 +71,8 @@ Module.register('MMM-FTP-image', {
 			case 'FTP_IMG_LIST_NAME':
 				this.logMessage('Images list received !');
 				this.imgNameList = payload;
+				
+				console.log(this.imgNameList);
 
 				if (!this.imageLoadFinished || this.finishAllImgInCurrentDirectory) {
 					this.scheduleImgUpdateInterval();
@@ -75,6 +102,9 @@ Module.register('MMM-FTP-image', {
 
 	getDom: function () {
 		var wrapper = document.createElement('div');
+		
+		wrapper.style.display = "grid";
+		wrapper.style.height = "100%";
 
 		if (this.error !== null) {
 			wrapper.innerHTML = this.translate(this.error);
@@ -109,6 +139,8 @@ Module.register('MMM-FTP-image', {
 			port: this.config.port,
 			user: this.config.user,
 			password: this.config.password,
+			secure: true,
+			secureOptions: { rejectUnauthorized: false },
 			defaultDirPath: this.config.defaultDirPath,
 			dirPathsAuthorized: this.config.dirPathsAuthorized,
 			finishAllImgInCurrentDirectory: this.finishAllImgInCurrentDirectory,
@@ -118,6 +150,7 @@ Module.register('MMM-FTP-image', {
 	createImageElement: function (image) {
 		var element = document.createElement('img');
 		element.src = `data:${image.mimeType};base64, ${image.base64}`;
+		element.style.margin = "auto";
 		element.style.maxWidth = this.config.width;
 		element.style.maxHeight = this.config.height;
 		element.style.opacity = this.config.opacity;
@@ -135,16 +168,48 @@ Module.register('MMM-FTP-image', {
 			port: this.config.port,
 			user: this.config.user,
 			password: this.config.password,
+			secure: true,
+			secureOptions: { rejectUnauthorized: false },
 			defaultDirPath: this.config.defaultDirPath,
 			dirPathsAuthorized: this.config.dirPathsAuthorized,
 			finishAllImgInCurrentDirectory: this.finishAllImgInCurrentDirectory,
 		};
-
+		
+		lFileName=undefined;
+		
+		// When the list is empty from an empty directory or possibilly a failed ftp it will produce and exception.
+		// We can avoid that with try and catch or if statement.
+		if(this.imageDisplayedNumber != undefined && this.imgNameList  != undefined && this.imgNameList[this.imageDisplayedNumber] != undefined && 'name' in this.imgNameList[this.imageDisplayedNumber])
+		{
+			//this.logMessage('Name is undefined Img# ' + this.imageDisplayedNumber+ ' imgNameList \'' + this.imgNameList+"'");
+			//this.getListImgNameFromFTPServer();
+			//return;
+			
+			lFileName = this.imgNameList[this.imageDisplayedNumber]['name'];
+			
+		}
+		
+		/* //Alternate to the if statement.
+		try{
+			lFileName = this.imgNameList[this.imageDisplayedNumber]['name'];
+		}
+		catch(error) {
+			this.logMessage('No current image list');
+		}
+		*/
+		
+		if(lFileName == undefined)
+		{
+			return;
+		}
+		
 		// Get first image
 		this.sendSocketNotification('FTP_IMG_CALL_BASE64', {
 			...payload,
-			fileName: this.imgNameList[this.imageDisplayedNumber].name,
+			fileName: lFileName,
 		});
+
+		
 
 		this.imageLoadFinished = true;
 		this.finishAllImgInCurrentDirectory = false;
@@ -161,11 +226,15 @@ Module.register('MMM-FTP-image', {
 	incrementImageIndex: function () {
 		this.logMessage(`Current image index: ${this.imageDisplayedNumber}`);
 
-		if (this.imageDisplayedNumber === this.imgNameList.length - 1) {
+		// if you have a directory that is empty or project files for gimp or photoshop the list will be 0.
+		// So add a check for that.
+		// TODO: test if this will cause a endless loop or other bugs. I think there is a bug producing empty lists.
+		if (this.imageDisplayedNumber === this.imgNameList.length - 1 || this.imgNameList.length == 0) {
 			clearInterval(this.intervalInstance);
 
 			// Wait 10s before call next directory
 			setTimeout(() => {
+				console.log("Next Directory");
 				this.imgNameList = [];
 				this.finishAllImgInCurrentDirectory = true;
 				this.sendSocketNotification('FTP_IMG_CALL_NEXT_DIR');
