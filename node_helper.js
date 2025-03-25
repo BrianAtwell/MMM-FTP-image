@@ -1,9 +1,11 @@
+var fs = require('fs');
 const FTPClient = require('ftp');
 const Log = require('logger');
 var NodeHelper = require('node_helper');
 const ConcatStream = require('concat-stream');
 const { Base64Encode } = require('base64-stream');
 const { ExtensionAuthorized, MimeTypesAuthorized } = require('./src/constants/img-authorized');
+const { ftpOptions} = require('./src/constants/ftp-config');
 
 module.exports = NodeHelper.create({
 	dirIndex: 0,
@@ -17,7 +19,8 @@ module.exports = NodeHelper.create({
 		Log.log('MMM-FTP-image module helper initialized.');
 	},
 
-	socketNotificationReceived: function (notification, payload) {
+	socketNotificationReceived: function (notification, webPayload) {
+		payload = this.createPayload(webPayload);
 		switch (notification) {
 			case 'FTP_IMG_CALL_LIST':
 				this.imgNameList = [];
@@ -36,25 +39,50 @@ module.exports = NodeHelper.create({
 			case 'FTP_IMG_CALL_NEXT_DIR':
 				this.dirIndex++;
 				break;
+			case 'PRINT_LIST':
+				for(var i = 0; i < this.dirNameList.length; i++)
+				{
+					Log.log('dir['+i+']:['+this.dirNameList[i].id+']'+this.dirNameList[i].name);
+				}
+				break;
 		}
 	},
+	
+	createPayload: function(webPayload) {
+		payload = {};
+		
+		Object.assign(payload, ftpOptions);
+		Object.assign(payload, webPayload);
+		
+		return payload;
+	},
 
-	connectFTPServer: function (type, payload) {
+	connectFTPServer: function (type, webPayload) {
+		payload = this.createPayload(webPayload);
 		const ftp = new FTPClient();
 		const self = this;
 
 		ftp.on('ready', function () {
-			switch (type) {
-				case 'list':
-					self.dirChangeAlgo(ftp, self, payload, type);
-					self.sendListName(ftp, self);
-					break;
-				case 'get':
-					self.dirChangeAlgo(ftp, self, payload, type);
-					self.sendBase64Img(ftp, self, payload);
-					break;
-				default:
-					throw new Error(`This type is not implemented => ${type}`);
+			try{
+				switch (type) {
+					case 'list':
+						self.dirChangeAlgo(ftp, self, payload, type);
+						self.sendListName(ftp, self);
+						break;
+					case 'get':
+						self.dirChangeAlgo(ftp, self, payload, type);
+						self.sendBase64Img(ftp, self, payload);
+						
+						break;
+					default:
+						throw new Error(`This type is not implemented => ${type}`);
+				}
+			}
+			catch(error)
+			{
+				Log.log("Exception "+error);				
+				// make sure our connection is always closed.
+				ftp.end();
 			}
 		});
 
@@ -93,14 +121,18 @@ module.exports = NodeHelper.create({
 			self.dirIndex = 0;
 			self.dirPathVisited = [];
 			path = payload.defaultDirPath;
+			//Log.log('MMM-FTP-image module End all directory has been visited.');
 		}
 
 		if (path) {
-			self.moveDir(ftp, path);
+			self.moveDir(ftp, self, path);
 		}
 	},
 
-	moveDir: function (ftp, path) {
+	moveDir: function (ftp, self, path) {
+		
+		
+		Log.log('MoveDir: '+path);
 		ftp.cwd(path, function (err) {
 			if (err) {
 				console.warn('Error while moving to directory', err);
@@ -108,15 +140,34 @@ module.exports = NodeHelper.create({
 				throw err;
 			}
 		});
+		
+		
 	},
 
 	sendListName: function (ftp, self) {
-		ftp.list(async function (err, list) {
+		let curDir = "";
+		ftp.pwd(function (err, cwd) {
+			if (!err) {
+				
+				curDir = cwd;
+				if(curDir[curDir.length-1] != '/')
+				{
+					curDir=curDir+'/';
+				}
+				console.log("PWD: "+curDir);
+			}
+		});
+		
+		
+		
+		ftpList = async function (err, list) {
 			if (err) {
 				console.warn('Error while listing files', err);
 				self.reset();
 				throw err;
 			}
+			
+			//console.log(list);
 
 			for (let i = 0; i < list.length; i++) {
 				const file = list[i];
@@ -139,8 +190,9 @@ module.exports = NodeHelper.create({
 								self.dirPathsAuthorized &&
 								self.dirPathsAuthorized.includes(file.name))
 						) {
+							console.log(file);
 							self.dirNameList.push({
-								name: file.name,
+								name: curDir+file.name,
 								id: self.dirNameList.length + 1,
 							});
 						}
@@ -151,10 +203,13 @@ module.exports = NodeHelper.create({
 			ftp.end();
 
 			self.sendSocketNotification('FTP_IMG_LIST_NAME', self.imgNameList);
-		});
+		}
+		
+		ftp.list(ftpList);
 	},
 
 	sendBase64Img: async function (ftp, self, payload) {
+		Log.log("SendBase64Img file: "+payload.fileName);
 		await new Promise((resolve, reject) => {
 			ftp.get(payload.fileName, function (err, stream) {
 				if (err) {

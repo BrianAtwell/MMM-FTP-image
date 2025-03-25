@@ -5,12 +5,6 @@
 
 Module.register('MMM-FTP-image', {
 	defaults: {
-		// FTP server configuration
-		port: 21,
-		user: 'pi',
-		password: null,
-		host: 'localhost',
-
 		// FTP directory configuration
 		defaultDirPath: null, // Type: string | null => Default directory to retrieve images
 		dirPathsAuthorized: [], // Type: Array<string> => List of authorized directories
@@ -41,13 +35,7 @@ Module.register('MMM-FTP-image', {
 		document.addEventListener('keyup', function(eventObj){
 			if(eventObj.key == 'd')
 			{
-				startObj.sendSocketNotification('PRINT_LIST', {
-					host: config.host,
-					port: config.port,
-					user: config.user,
-					password: config.password,
-					secure: true,
-					secureOptions: { rejectUnauthorized: false },
+					startObj.sendSocketNotification('PRINT_LIST', {
 					defaultDirPath: config.defaultDirPath,
 					dirPathsAuthorized: config.dirPathsAuthorized,
 					finishAllImgInCurrentDirectory: finishAllImgInCurrentDirectory,
@@ -56,10 +44,6 @@ Module.register('MMM-FTP-image', {
 				console.log("test");
 			}
 		}, false);
-
-		if (!this.config.password) {
-			this.logMessage('The password is not entered !', 'error');
-		}
 		
 		this.imageDisplayedNumber=0;
 
@@ -71,6 +55,20 @@ Module.register('MMM-FTP-image', {
 			case 'FTP_IMG_LIST_NAME':
 				this.logMessage('Images list received !');
 				this.imgNameList = payload;
+				
+				if(!this.imgNameList || !'length' in this.imgNameList || this.imgNameList.length == 0)
+				{
+					clearInterval(this.intervalInstance);
+
+					// Wait 10s before call next directory
+					setTimeout(() => {
+						console.log("Next Directory");
+						this.imgNameList = [];
+						this.finishAllImgInCurrentDirectory = true;
+						this.sendSocketNotification('FTP_IMG_CALL_NEXT_DIR');
+						this.getListImgNameFromFTPServer();
+					}, this.config.imgChangeInterval);
+				}
 				
 				console.log(this.imgNameList);
 
@@ -135,12 +133,6 @@ Module.register('MMM-FTP-image', {
 
 		// Send FTP_IMG for get img from FTP server
 		this.sendSocketNotification('FTP_IMG_CALL_LIST', {
-			host: this.config.host,
-			port: this.config.port,
-			user: this.config.user,
-			password: this.config.password,
-			secure: true,
-			secureOptions: { rejectUnauthorized: false },
 			defaultDirPath: this.config.defaultDirPath,
 			dirPathsAuthorized: this.config.dirPathsAuthorized,
 			finishAllImgInCurrentDirectory: this.finishAllImgInCurrentDirectory,
@@ -164,12 +156,6 @@ Module.register('MMM-FTP-image', {
 		this.logMessage(`Scheduled update interval (${this.config.imgChangeInterval / 1000}s)...`);
 
 		const payload = {
-			host: this.config.host,
-			port: this.config.port,
-			user: this.config.user,
-			password: this.config.password,
-			secure: true,
-			secureOptions: { rejectUnauthorized: false },
 			defaultDirPath: this.config.defaultDirPath,
 			dirPathsAuthorized: this.config.dirPathsAuthorized,
 			finishAllImgInCurrentDirectory: this.finishAllImgInCurrentDirectory,
