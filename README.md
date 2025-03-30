@@ -71,11 +71,6 @@ modules: [
         module: 'MMM-FTP-image',
         position: 'middle_center',
         config: {
-            // FTP server configuration
-            port: 5555,
-            user: 'pi',
-            host: '192.168.1.16',
-            password: '1234567890',
 
             // Display configuration
             opacity: 1.0,
@@ -89,6 +84,41 @@ modules: [
         },
     },
 ];
+```
+
+To configure the ftp options edit `src/constants/ftp-config.js` file.
+
+```
+var fs = require('fs');
+
+module.exports = {
+	ftpOptions: {
+			// FTP server configuration
+			port: 201,
+			user: 'ftpuser',
+			host: '192.168.1.50',
+			password: 'password',
+
+			// Display configuration
+			opacity: 1.0,
+			width: '100%',
+			height: '100vh',
+			imgChangeInterval: 5000,
+
+			// FTP directory configuration
+			defaultDirPath: null,
+			dirPathsAuthorized: [],
+			finishAllImgInCurrentDirectory: false,
+			
+			// FTP TLS explicit
+			secure: true,
+			secureOptions: {
+				// Path to the TLS self signed certificate
+				ca: [ fs.readFileSync('/etc/ssl/certs/vsftpd_pics.pem') ],
+				rejectUnauthorized: false
+			},
+		},
+};
 ```
 
 ## Configuration options
@@ -176,3 +206,14 @@ The following properties can be configured:
   </tr>
 </tbody>
 </table>
+
+## Dev Notes
+
+The following file has been setup to be ignored to prevent accidentally commiting sensitive information.
+src/constants/ftp-config.js
+
+The following command was used.
+git update-index --assume-unchanged src/constants/ftp-config.js
+
+To enable tracking the file use the following command
+git update-index --no-assume-unchange src/constants/ftp-config.js

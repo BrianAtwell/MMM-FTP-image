@@ -38,6 +38,14 @@ module.exports = NodeHelper.create({
 				break;
 			case 'FTP_IMG_CALL_NEXT_DIR':
 				this.dirIndex++;
+				if (
+					this.dirIndex > this.dirNameList.length
+				) {
+					//self.dirIndex = -1;
+					//self.dirPathVisited = [];
+					//Log.log("command 'get'");
+					this.reset();
+				}
 				break;
 			case 'PRINT_LIST':
 				for(var i = 0; i < this.dirNameList.length; i++)
@@ -63,26 +71,18 @@ module.exports = NodeHelper.create({
 		const self = this;
 
 		ftp.on('ready', function () {
-			try{
-				switch (type) {
-					case 'list':
-						self.dirChangeAlgo(ftp, self, payload, type);
-						self.sendListName(ftp, self);
-						break;
-					case 'get':
-						self.dirChangeAlgo(ftp, self, payload, type);
-						self.sendBase64Img(ftp, self, payload);
-						
-						break;
-					default:
-						throw new Error(`This type is not implemented => ${type}`);
-				}
-			}
-			catch(error)
-			{
-				Log.log("Exception "+error);				
-				// make sure our connection is always closed.
-				ftp.end();
+			switch (type) {
+				case 'list':
+					self.dirChangeAlgo(ftp, self, payload, type);
+					self.sendListName(ftp, self);
+					break;
+				case 'get':
+					self.dirChangeAlgo(ftp, self, payload, type);
+					self.sendBase64Img(ftp, self, payload);
+					
+					break;
+				default:
+					throw new Error(`This type is not implemented => ${type}`);
 			}
 		});
 
@@ -93,6 +93,7 @@ module.exports = NodeHelper.create({
 
 	dirChangeAlgo: function (ftp, self, payload, type) {
 		let path = null;
+		
 
 		if (self.dirIndex > 0) {
 			path = payload.defaultDirPath
@@ -104,12 +105,13 @@ module.exports = NodeHelper.create({
 			}
 
 			if (
-				self.dirPathVisited.length === self.dirNameList.length &&
+				self.dirPathVisited.length > self.dirNameList.length &&
 				type === 'get' &&
 				payload.finishAllImgInCurrentDirectory
 			) {
-				self.dirIndex = -1;
-				self.dirPathVisited = [];
+				//self.dirIndex = -1;
+				//self.dirPathVisited = [];
+				self.reset();
 			}
 		}
 		// First call and defaultDirPath is defined
@@ -130,9 +132,7 @@ module.exports = NodeHelper.create({
 	},
 
 	moveDir: function (ftp, self, path) {
-		
-		
-		Log.log('MoveDir: '+path);
+
 		ftp.cwd(path, function (err) {
 			if (err) {
 				console.warn('Error while moving to directory', err);
@@ -154,7 +154,6 @@ module.exports = NodeHelper.create({
 				{
 					curDir=curDir+'/';
 				}
-				console.log("PWD: "+curDir);
 			}
 		});
 		
@@ -166,8 +165,6 @@ module.exports = NodeHelper.create({
 				self.reset();
 				throw err;
 			}
-			
-			//console.log(list);
 
 			for (let i = 0; i < list.length; i++) {
 				const file = list[i];
@@ -190,7 +187,6 @@ module.exports = NodeHelper.create({
 								self.dirPathsAuthorized &&
 								self.dirPathsAuthorized.includes(file.name))
 						) {
-							console.log(file);
 							self.dirNameList.push({
 								name: curDir+file.name,
 								id: self.dirNameList.length + 1,
@@ -230,6 +226,7 @@ module.exports = NodeHelper.create({
 					.catch(function (err) {
 						console.warn('Error while converting stream to base64', err);
 						self.reset();
+						ftp.end();
 						throw new Error(err);
 					});
 			});

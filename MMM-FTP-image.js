@@ -24,6 +24,7 @@ Module.register('MMM-FTP-image', {
 	finishAllImgInCurrentDirectory: false,
 
 	intervalInstance: null,
+	nextDirIntervalInstance: null,
 
 	start: function () {
 		this.logMessage('Started.');
@@ -32,18 +33,7 @@ Module.register('MMM-FTP-image', {
 		finishAllImgInCurrentDirectory = this.finishAllImgInCurrentDirectory;
 		startObj=this;
 		
-		document.addEventListener('keyup', function(eventObj){
-			if(eventObj.key == 'd')
-			{
-					startObj.sendSocketNotification('PRINT_LIST', {
-					defaultDirPath: config.defaultDirPath,
-					dirPathsAuthorized: config.dirPathsAuthorized,
-					finishAllImgInCurrentDirectory: finishAllImgInCurrentDirectory,
-					
-				});
-				console.log("test");
-			}
-		}, false);
+
 		
 		this.imageDisplayedNumber=0;
 
@@ -56,23 +46,11 @@ Module.register('MMM-FTP-image', {
 				this.logMessage('Images list received !');
 				this.imgNameList = payload;
 				
-				if(!this.imgNameList || !'length' in this.imgNameList || this.imgNameList.length == 0)
-				{
-					clearInterval(this.intervalInstance);
 
-					// Wait 10s before call next directory
-					setTimeout(() => {
-						console.log("Next Directory");
-						this.imgNameList = [];
-						this.finishAllImgInCurrentDirectory = true;
-						this.sendSocketNotification('FTP_IMG_CALL_NEXT_DIR');
-						this.getListImgNameFromFTPServer();
-					}, this.config.imgChangeInterval);
-				}
 				
-				console.log(this.imgNameList);
 
 				if (!this.imageLoadFinished || this.finishAllImgInCurrentDirectory) {
+					this.logMessage('scheduleImgUpdateInterval ImgList !');
 					this.scheduleImgUpdateInterval();
 					this.finishAllImgInCurrentDirectory = false;
 				}
@@ -93,6 +71,7 @@ Module.register('MMM-FTP-image', {
 				this.imgNameList = [];
 				this.imageDisplayedNumber = 0;
 				clearInterval(this.intervalInstance);
+				//clearInterval(this.nextDirIntervalInstance);
 				this.getListImgNameFromFTPServer();
 				break;
 		}
@@ -202,10 +181,13 @@ Module.register('MMM-FTP-image', {
 
 		// Set interval to reload image
 		this.intervalInstance = setInterval(() => {
-			this.sendSocketNotification('FTP_IMG_CALL_BASE64', {
-				...payload,
-				fileName: this.imgNameList[this.imageDisplayedNumber].name,
-			});
+			if(this.imgNameList.length > this.imageDisplayedNumber)
+			{
+				this.sendSocketNotification('FTP_IMG_CALL_BASE64', {
+					...payload,
+					fileName: this.imgNameList[this.imageDisplayedNumber].name,
+				});
+			}
 		}, this.config.imgChangeInterval);
 	},
 
@@ -217,9 +199,10 @@ Module.register('MMM-FTP-image', {
 		// TODO: test if this will cause a endless loop or other bugs. I think there is a bug producing empty lists.
 		if (this.imageDisplayedNumber === this.imgNameList.length - 1 || this.imgNameList.length == 0) {
 			clearInterval(this.intervalInstance);
+			clearInterval(this.nextDirIntervalInstance);
 
 			// Wait 10s before call next directory
-			setTimeout(() => {
+			this.nextDirIntervalInstance = setTimeout(() => {
 				console.log("Next Directory");
 				this.imgNameList = [];
 				this.finishAllImgInCurrentDirectory = true;
