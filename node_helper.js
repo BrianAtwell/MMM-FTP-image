@@ -1,10 +1,11 @@
 var fs = require('fs');
+const readline = require('readline');
 const FTPClient = require('ftp');
 const Log = require('logger');
 var NodeHelper = require('node_helper');
 const ConcatStream = require('concat-stream');
 const { Base64Encode } = require('base64-stream');
-const { ExtensionAuthorized, MimeTypesAuthorized } = require('./src/constants/img-authorized');
+const { ExtensionAuthorized, MimeTypesAuthorized, SaveDirFileName, SaveLastFileName } = require('./src/constants/img-authorized');
 const { ftpOptions} = require('./src/constants/ftp-config');
 
 module.exports = NodeHelper.create({
@@ -13,6 +14,8 @@ module.exports = NodeHelper.create({
 	dirNameList: [], // Array<{ id: number; name: string }>
 
 	imgNameList: [], // Array<{ id: number; name: string }>
+	curDirectory: "",
+	lastPicture: "",
 	imgBase64: new Object(), // { base64: string; mimeType: string }
 
 	init: function () {
@@ -22,7 +25,13 @@ module.exports = NodeHelper.create({
 	socketNotificationReceived: function (notification, webPayload) {
 		payload = this.createPayload(webPayload);
 		switch (notification) {
+			case 'LOAD_PREVIOUS_STATE_CALL':
+				console.log('LOAD_PREVIOUS_STATE_CALL');
+				this.loadPreviousState(this);
+				break;
 			case 'FTP_IMG_CALL_LIST':
+			
+				this.saveDirList(this);
 				this.imgNameList = [];
 
 				if (payload.dirPathsAuthorized) {
@@ -33,6 +42,8 @@ module.exports = NodeHelper.create({
 				}
 				break;
 			case 'FTP_IMG_CALL_BASE64':
+				this.lastPicture = payload.fileName;
+				
 				this.imgBase64 = new Object();
 				this.connectFTPServer('get', payload);
 				break;
@@ -44,7 +55,7 @@ module.exports = NodeHelper.create({
 					//self.dirIndex = -1;
 					//self.dirPathVisited = [];
 					//Log.log("command 'get'");
-					this.reset();
+					this.restart();
 				}
 				break;
 			case 'PRINT_LIST':
@@ -55,6 +66,183 @@ module.exports = NodeHelper.create({
 				break;
 		}
 	},
+	
+	resetSavedState: function(self) {
+		fs.writeFile(SaveLastFileName, "", err => {
+		  if (err) {
+			console.error(err);
+		  } else {
+			// file written successfully
+		  }
+		});
+		
+		fs.writeFile(SaveDirFileName, "", err => {
+		  if (err) {
+			console.error(err);
+		  } else {
+			// file written successfully
+		  }
+		});
+	},
+	
+	saveDirList: function(self) {
+		
+		try {
+			fileContent = "";
+			
+			fileContent+=self.dirIndex+"\n";
+			
+			for(var lDirIndex=0; lDirIndex < self.dirNameList.length; lDirIndex++)
+			{
+				if(self.dirNameList[lDirIndex]['name'] !== undefined)
+				{
+					fileContent+=self.dirNameList[lDirIndex]['id'].toString()+"\n";
+					fileContent+=self.dirNameList[lDirIndex]['name'].toString()+"\n";
+				}
+			}
+			
+			//Save current File name
+			fs.writeFile(SaveDirFileName, fileContent, err => {
+			  if (err) {
+				console.error(err);
+			  } else {
+				// file written successfully
+			  }
+			});
+		}
+		catch(error)
+		{
+			console.log("Error SaveDirList failed "+error);
+		}
+	},
+	
+	saveCurFile: function(self) {
+		content = "";
+		//content += self.curDirectory+"\n";
+		
+		var imgIdx = 0;
+		
+		for(; imgIdx < self.imgNameList.length; imgIdx++)
+		{
+			if(self.imgNameList[imgIdx] == self.lastPicture)
+			{
+				break;
+			}
+		}
+		
+		content += imgIdx-1 + "\n";
+		content += self.curDirectory + "\n";
+		content += self.lastPicture + "\n";
+		//Save current File name
+		fs.writeFile(SaveLastFileName, content, err => {
+		  if (err) {
+			console.error(err);
+		  } else {
+			// file written successfully
+		  }
+		});
+	},
+	
+	readLastFile: function(self) {
+		const data="";
+		try {
+			const data = fs.readFileSync(SaveLastFileName, 'utf8');
+		} catch (err) {
+			console.error(err);
+		}
+		
+		firstLineEndPos=data.indexOf("\n");
+		data.indexOf("\n");
+		
+		if(firstLineEndPos != -1)
+		{
+			var num = Number(data.slice(0,firstLineEndPos));
+			console.log("file Index "+num);
+			return num;
+		}
+		
+		return 0;
+	},
+	
+	loadPreviousState: async function(self) {
+		
+		try{
+			const fileStream = fs.createReadStream(SaveDirFileName);
+
+			const rl = readline.createInterface({
+				input: fileStream,
+				crlfDelay: Infinity // To handle different line endings (CRLF or LF)
+			});
+			
+			var tempDirList = [];
+			var tempPathVisited = [];
+			
+			var lineNum = 0;
+			var tempDirIndex=0;
+			var curIndex = 0;
+			var lId = 0;
+
+			rl.on('line', (line) => {
+				if(lineNum == 0)
+				{
+					tempDirIndex=parseInt(line);
+				}
+				else
+				{
+					if(curIndex%2 == 0)
+					{
+						lId = Number(line);
+					}
+					else
+					{
+						var dirOBj = {
+							id: lId,
+							name: line
+						};
+						
+						tempDirList.push(dirOBj);
+					}
+					if(curIndex/2 <= tempDirIndex)
+					{
+						tempPathVisited.push(dirOBj);
+						
+					}
+					
+					curIndex++;
+				}
+				lineNum++;
+			});
+
+			rl.on('close', () => {
+				console.log('Finished reading the file.');
+				
+				for(var i=0; i < tempDirList.length; i++)
+				{
+					console.log(tempDirList[i]);
+				}
+				console.log("End of dir list");
+				lImgNum=self.readLastFile(self);
+				self.dirIndex = tempDirIndex;
+				self.dirPathVisited = tempPathVisited;
+				self.dirNameList = tempDirList;
+				self.imgNameList = [];
+				self.imgBase64 = new Object();
+				
+				self.sendSocketNotification('LOAD_PREVIOUS_STATE', lImgNum);
+			});
+
+			rl.on('error', (err) => {
+				console.error('Error reading the file:', err);
+				self.sendSocketNotification('LOAD_PREVIOUS_STATE', 0);
+			});
+		}
+		catch(error)
+		{
+			console.log("Error Loading previous state: "+error);
+		}
+	},
+	
+	
 	
 	createPayload: function(webPayload) {
 		payload = {};
@@ -75,15 +263,17 @@ module.exports = NodeHelper.create({
 				case 'list':
 					self.dirChangeAlgo(ftp, self, payload, type);
 					self.sendListName(ftp, self);
+					//self.saveDirList(self);
 					break;
 				case 'get':
 					self.dirChangeAlgo(ftp, self, payload, type);
 					self.sendBase64Img(ftp, self, payload);
-					
+					self.saveCurFile(self);
 					break;
 				default:
 					throw new Error(`This type is not implemented => ${type}`);
 			}
+			ftp.end();
 		});
 
 		ftp.connect({
@@ -132,10 +322,11 @@ module.exports = NodeHelper.create({
 	},
 
 	moveDir: function (ftp, self, path) {
-
+		//self.curDirectory=path;
 		ftp.cwd(path, function (err) {
 			if (err) {
 				console.warn('Error while moving to directory', err);
+				console.log('Path: '+path);
 				self.reset();
 				throw err;
 			}
@@ -144,20 +335,18 @@ module.exports = NodeHelper.create({
 		
 	},
 
-	sendListName: function (ftp, self) {
-		let curDir = "";
-		ftp.pwd(function (err, cwd) {
-			if (!err) {
+	sendListName: function (ftp, self) {		
+		
+		ftp.pwd(function (err, path) {
+			if (err) {
 				
-				curDir = cwd;
-				if(curDir[curDir.length-1] != '/')
-				{
-					curDir=curDir+'/';
-				}
+				console.warn('Error PWD ', err);
+			}
+			else
+			{
+				self.curDirectory = path;
 			}
 		});
-		
-		
 		
 		ftpList = async function (err, list) {
 			if (err) {
@@ -188,7 +377,7 @@ module.exports = NodeHelper.create({
 								self.dirPathsAuthorized.includes(file.name))
 						) {
 							self.dirNameList.push({
-								name: curDir+file.name,
+								name: self.curDirectory+file.name,
 								id: self.dirNameList.length + 1,
 							});
 						}
@@ -264,13 +453,19 @@ module.exports = NodeHelper.create({
 			}
 		}
 	},
-
-	reset: function () {
+	
+	restart: function() {
 		this.dirIndex = 0;
 		this.dirPathVisited = [];
 		this.dirNameList = [];
 		this.imgNameList = [];
 		this.imgBase64 = new Object();
+		
+		this.resetSavedState(this);
+	},
+
+	reset: function () {
+		this.restart();
 
 		this.sendSocketNotification('RESET');
 	},

@@ -10,6 +10,9 @@ const mimeTypes = {
 	bmp: 'image/bmp',
 };
 
+const saveDirFileName = "dirList.txt";
+const saveLastFileName = "lastPicture.txt";
+
 module.exports = {
 	MimeTypesAuthorized: mimeTypes,
 	ExtensionList: extensionList,
@@ -17,4 +20,6 @@ module.exports = {
 		.map(e => e.toUpperCase())
 		.join('|')
 		.concat(`|${extensionList.join('|')}`),
+	SaveDirFileName: saveDirFileName,
+	SaveLastFileName: saveLastFileName,
 };

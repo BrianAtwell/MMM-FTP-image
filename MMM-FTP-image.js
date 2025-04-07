@@ -22,6 +22,8 @@ Module.register('MMM-FTP-image', {
 
 	imageLoadFinished: false,
 	finishAllImgInCurrentDirectory: false,
+	
+	imgListState: 0,
 
 	intervalInstance: null,
 	nextDirIntervalInstance: null,
@@ -38,11 +40,21 @@ Module.register('MMM-FTP-image', {
 		this.imageDisplayedNumber=0;
 
 		this.getListImgNameFromFTPServer();
+		
+		// Send FTP_IMG for get img from FTP server
+		/*
+		this.sendSocketNotification('LOAD_PREVIOUS_STATE_CALL', {
+			defaultDirPath: this.config.defaultDirPath,
+			dirPathsAuthorized: this.config.dirPathsAuthorized,
+			finishAllImgInCurrentDirectory: this.finishAllImgInCurrentDirectory,
+		});
+		*/
 	},
 
 	socketNotificationReceived: function (notification, payload) {
 		switch (notification) {
 			case 'FTP_IMG_LIST_NAME':
+				this.imgListState=0;
 				this.logMessage('Images list received !');
 				this.imgNameList = payload;
 				
@@ -55,13 +67,28 @@ Module.register('MMM-FTP-image', {
 					this.finishAllImgInCurrentDirectory = false;
 				}
 
-				if (this.imageLoadFinished) break;
+				break;
 
 			case 'FTP_IMG_BASE64':
 				this.logMessage('Images received !');
 				this.imgBase64 = payload;
 				this.incrementImageIndex();
 				this.updateDom();
+				break;
+				
+			case 'LOAD_PREVIOUS_STATE':
+				console.log('LOAD_PREVIOUS_STATE');
+				this.imageDisplayedNumber = Number(payload);
+				
+				if(this.imgListState == 0)
+				{
+					this.imgListState=1;
+					this.sendSocketNotification('FTP_IMG_CALL_LIST', {
+						defaultDirPath: this.config.defaultDirPath,
+						dirPathsAuthorized: this.config.dirPathsAuthorized,
+						finishAllImgInCurrentDirectory: this.finishAllImgInCurrentDirectory,
+					});
+				}
 				break;
 
 			case 'RESET':
@@ -70,6 +97,7 @@ Module.register('MMM-FTP-image', {
 				this.finishAllImgInCurrentDirectory = true;
 				this.imgNameList = [];
 				this.imageDisplayedNumber = 0;
+				this.imgListState=0;
 				clearInterval(this.intervalInstance);
 				//clearInterval(this.nextDirIntervalInstance);
 				this.getListImgNameFromFTPServer();
@@ -109,13 +137,18 @@ Module.register('MMM-FTP-image', {
 	 */
 	getListImgNameFromFTPServer: function () {
 		this.imageDisplayedNumber = 0;
-
-		// Send FTP_IMG for get img from FTP server
-		this.sendSocketNotification('FTP_IMG_CALL_LIST', {
-			defaultDirPath: this.config.defaultDirPath,
-			dirPathsAuthorized: this.config.dirPathsAuthorized,
-			finishAllImgInCurrentDirectory: this.finishAllImgInCurrentDirectory,
-		});
+		
+		if(this.imgListState == 0)
+		{
+			this.imgListState=1;
+			
+			// Send FTP_IMG for get img from FTP server
+			this.sendSocketNotification('FTP_IMG_CALL_LIST', {
+				defaultDirPath: this.config.defaultDirPath,
+				dirPathsAuthorized: this.config.dirPathsAuthorized,
+				finishAllImgInCurrentDirectory: this.finishAllImgInCurrentDirectory,
+			});
+		}
 	},
 
 	createImageElement: function (image) {
