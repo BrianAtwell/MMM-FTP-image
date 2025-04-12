@@ -20,14 +20,20 @@ module.exports = NodeHelper.create({
 
 	init: function () {
 		Log.log('MMM-FTP-image module helper initialized.');
+		this.loadPreviousState(this);
+	},
+	
+	start: function() {
+		Log.log('MMM-FTP-image module helper Started.');
 	},
 
 	socketNotificationReceived: function (notification, webPayload) {
 		payload = this.createPayload(webPayload);
 		switch (notification) {
-			case 'LOAD_PREVIOUS_STATE_CALL':
-				console.log('LOAD_PREVIOUS_STATE_CALL');
-				this.loadPreviousState(this);
+			case 'LOAD_PREVIOUS_INDEX_CALL':
+				console.log('LOAD_PREVIOUS_INDEX_CALL');
+				var lImgNum=this.readLastFile(this);
+				this.sendSocketNotification('LOAD_PREVIOUS_INDEX', lImgNum);
 				break;
 			case 'FTP_IMG_CALL_LIST':
 			
@@ -144,22 +150,24 @@ module.exports = NodeHelper.create({
 	},
 	
 	readLastFile: function(self) {
-		const data="";
 		try {
 			const data = fs.readFileSync(SaveLastFileName, 'utf8');
+			
+			firstLineEndPos=data.indexOf("\n");
+			data.indexOf("\n");
+			console.log("firstLineEndPos: "+firstLineEndPos);
+			
+			if(firstLineEndPos != -1)
+			{
+				var num = Number(data.slice(0,firstLineEndPos));
+				console.log("file Index "+num);
+				return num;
+			}
 		} catch (err) {
 			console.error(err);
 		}
 		
-		firstLineEndPos=data.indexOf("\n");
-		data.indexOf("\n");
 		
-		if(firstLineEndPos != -1)
-		{
-			var num = Number(data.slice(0,firstLineEndPos));
-			console.log("file Index "+num);
-			return num;
-		}
 		
 		return 0;
 	},
@@ -167,6 +175,8 @@ module.exports = NodeHelper.create({
 	loadPreviousState: async function(self) {
 		
 		try{
+			//var lImgNum=self.readLastFile(self);
+			
 			const fileStream = fs.createReadStream(SaveDirFileName);
 
 			const rl = readline.createInterface({
@@ -191,7 +201,7 @@ module.exports = NodeHelper.create({
 				{
 					if(curIndex%2 == 0)
 					{
-						lId = Number(line);
+						lId = parseInt(line);
 					}
 					else
 					{
@@ -201,12 +211,13 @@ module.exports = NodeHelper.create({
 						};
 						
 						tempDirList.push(dirOBj);
+						if(curIndex/2 <= tempDirIndex)
+						{
+							tempPathVisited.push(line);
+							
+						}
 					}
-					if(curIndex/2 <= tempDirIndex)
-					{
-						tempPathVisited.push(dirOBj);
-						
-					}
+					
 					
 					curIndex++;
 				}
@@ -221,19 +232,18 @@ module.exports = NodeHelper.create({
 					console.log(tempDirList[i]);
 				}
 				console.log("End of dir list");
-				lImgNum=self.readLastFile(self);
 				self.dirIndex = tempDirIndex;
 				self.dirPathVisited = tempPathVisited;
 				self.dirNameList = tempDirList;
 				self.imgNameList = [];
 				self.imgBase64 = new Object();
 				
-				self.sendSocketNotification('LOAD_PREVIOUS_STATE', lImgNum);
+				//self.sendSocketNotification('LOAD_PREVIOUS_STATE', lImgNum);
 			});
 
 			rl.on('error', (err) => {
 				console.error('Error reading the file:', err);
-				self.sendSocketNotification('LOAD_PREVIOUS_STATE', 0);
+				//self.sendSocketNotification('LOAD_PREVIOUS_STATE', 0);
 			});
 		}
 		catch(error)
@@ -361,6 +371,7 @@ module.exports = NodeHelper.create({
 				switch (file.type) {
 					case '-': // File type
 						if (file.name.match(new RegExp(`.(${ExtensionAuthorized}?)$`, 'gm'))) {
+							console.log("Added new Picture: "+file.name);
 							self.imgNameList.push({
 								name: file.name,
 								id: self.imgNameList.length + 1,
@@ -383,6 +394,18 @@ module.exports = NodeHelper.create({
 						}
 						break;
 				}
+			}
+			
+			console.log("dirIndex"+self.dirIndex);
+			
+			for(var i=0; i<self.dirPathVisited.length; i++)
+			{
+				console.log("PathVisited: "+self.dirPathVisited[i]);
+			}
+			
+			for(var i=0; i<self.dirNameList.length; i++)
+			{
+				console.log("Dir: "+self.dirNameList[i]['name']);
 			}
 
 			ftp.end();

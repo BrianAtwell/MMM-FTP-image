@@ -39,16 +39,15 @@ Module.register('MMM-FTP-image', {
 		
 		this.imageDisplayedNumber=0;
 
-		this.getListImgNameFromFTPServer();
+		//this.getListImgNameFromFTPServer();
 		
 		// Send FTP_IMG for get img from FTP server
-		/*
-		this.sendSocketNotification('LOAD_PREVIOUS_STATE_CALL', {
+		this.sendSocketNotification('LOAD_PREVIOUS_INDEX_CALL', {
 			defaultDirPath: this.config.defaultDirPath,
 			dirPathsAuthorized: this.config.dirPathsAuthorized,
 			finishAllImgInCurrentDirectory: this.finishAllImgInCurrentDirectory,
 		});
-		*/
+
 	},
 
 	socketNotificationReceived: function (notification, payload) {
@@ -76,10 +75,11 @@ Module.register('MMM-FTP-image', {
 				this.updateDom();
 				break;
 				
-			case 'LOAD_PREVIOUS_STATE':
-				console.log('LOAD_PREVIOUS_STATE');
+			case 'LOAD_PREVIOUS_INDEX':
+				console.log('LOAD_PREVIOUS_INDEX');
 				this.imageDisplayedNumber = Number(payload);
 				
+				/*
 				if(this.imgListState == 0)
 				{
 					this.imgListState=1;
@@ -89,6 +89,9 @@ Module.register('MMM-FTP-image', {
 						finishAllImgInCurrentDirectory: this.finishAllImgInCurrentDirectory,
 					});
 				}
+				*/
+				
+				this.getListImgNameFromFTPServer(false);
 				break;
 
 			case 'RESET':
@@ -135,8 +138,11 @@ Module.register('MMM-FTP-image', {
 	/**
 	 * Send notification of node_helper for get name list from FTP server
 	 */
-	getListImgNameFromFTPServer: function () {
-		this.imageDisplayedNumber = 0;
+	getListImgNameFromFTPServer: function (isReset=true) {
+		if(isReset)
+		{
+			this.imageDisplayedNumber = 0;
+		}
 		
 		if(this.imgListState == 0)
 		{
