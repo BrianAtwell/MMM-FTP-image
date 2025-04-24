@@ -39,14 +39,16 @@ Module.register('MMM-FTP-image', {
 		
 		this.imageDisplayedNumber=0;
 
-		//this.getListImgNameFromFTPServer();
+		this.getListImgNameFromFTPServer();
 		
+		/*
 		// Send FTP_IMG for get img from FTP server
 		this.sendSocketNotification('LOAD_PREVIOUS_INDEX_CALL', {
 			defaultDirPath: this.config.defaultDirPath,
 			dirPathsAuthorized: this.config.dirPathsAuthorized,
 			finishAllImgInCurrentDirectory: this.finishAllImgInCurrentDirectory,
 		});
+		*/
 
 	},
 
@@ -57,12 +59,26 @@ Module.register('MMM-FTP-image', {
 				this.logMessage('Images list received !');
 				this.imgNameList = payload;
 				
-
+				console.log(payload);
 				
 
 				if (!this.imageLoadFinished || this.finishAllImgInCurrentDirectory) {
 					this.logMessage('scheduleImgUpdateInterval ImgList !');
-					this.scheduleImgUpdateInterval();
+					if(this.scheduleImgUpdateInterval() == false)
+					{
+						clearInterval(this.intervalInstance);
+						clearInterval(this.nextDirIntervalInstance);
+
+						// Wait 10s before call next directory
+						this.nextDirIntervalInstance = setTimeout(() => {
+							console.log("Next Directory");
+							this.imgNameList = [];
+							this.finishAllImgInCurrentDirectory = true;
+							this.sendSocketNotification('FTP_IMG_CALL_NEXT_DIR');
+							this.getListImgNameFromFTPServer();
+						}, this.config.imgChangeInterval);
+						return;
+					}
 					this.finishAllImgInCurrentDirectory = false;
 				}
 
@@ -204,7 +220,7 @@ Module.register('MMM-FTP-image', {
 		
 		if(lFileName == undefined)
 		{
-			return;
+			return false;
 		}
 		
 		// Get first image
@@ -228,6 +244,8 @@ Module.register('MMM-FTP-image', {
 				});
 			}
 		}, this.config.imgChangeInterval);
+		
+		return true;
 	},
 
 	incrementImageIndex: function () {

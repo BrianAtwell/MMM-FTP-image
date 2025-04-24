@@ -20,7 +20,7 @@ module.exports = NodeHelper.create({
 
 	init: function () {
 		Log.log('MMM-FTP-image module helper initialized.');
-		this.loadPreviousState(this);
+		//this.loadPreviousState(this);
 	},
 	
 	start: function() {
