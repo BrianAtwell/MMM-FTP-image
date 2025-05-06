@@ -264,20 +264,19 @@ module.exports = NodeHelper.create({
 	},
 
 	connectFTPServer: function (type, webPayload) {
-		payload = this.createPayload(webPayload);
 		const ftp = new FTPClient();
 		const self = this;
 
 		ftp.on('ready', function () {
 			switch (type) {
 				case 'list':
-					self.dirChangeAlgo(ftp, self, payload, type);
+					self.dirChangeAlgo(ftp, self, webPayload, type);
 					self.sendListName(ftp, self);
 					//self.saveDirList(self);
 					break;
 				case 'get':
-					self.dirChangeAlgo(ftp, self, payload, type);
-					self.sendBase64Img(ftp, self, payload);
+					self.dirChangeAlgo(ftp, self, webPayload, type);
+					self.sendBase64Img(ftp, self, webPayload);
 					self.saveCurFile(self);
 					break;
 				default:
@@ -287,7 +286,7 @@ module.exports = NodeHelper.create({
 		});
 
 		ftp.connect({
-			...payload,
+			...ftpOptions,
 		});
 	},
 
