@@ -1,7 +1,8 @@
 class ImageData {
-	constructor(path, filename) {
+	constructor(path, filename, FTPOptions) {
 		this.path = path;
 		this.filename = filename;
+		this.FTPOptions = FTPOptions
 	}
 	
 	get path() {
@@ -11,6 +12,72 @@ class ImageData {
 	get filename() {
 		return this.filename;
 	}
+	
+	getFile() {
+		connectFTPServer();
+	}
+	
+	async sendBase64Img(ftp, self, streamFunc) {
+		Log.log("SendBase64Img file: "+fileName);
+		await new Promise((resolve, reject) => {
+			ftp.get(self.fileName, function (err, stream) {
+				if (err) {
+					console.warn('Error while getting file', err);
+					reject(err);
+
+					self.reset();
+				}
+				
+				streamFunc(fileName, stream);
+
+				self.streamToBase64(stream, ftp)
+					.then(function (res) {
+						self.imgBase64 = {
+							base64: res,
+							mimeType: self.getMimeType(fileName),
+						};
+						resolve();
+					})
+					.catch(function (err) {
+						console.warn('Error while converting stream to base64', err);
+						self.reset();
+						ftp.end();
+						throw new Error(err);
+					});
+			});
+		});
+
+		self.sendSocketNotification('FTP_IMG_BASE64', self.imgBase64);
+	}
+	
+	connectFTPServer() {
+        const ftp = new FTPClient();
+        const self = this;
+
+        ftp.on('ready', function () {
+            self.moveDir(ftp, self, self.path);
+            self.sendBase64Img(ftp, self);
+
+            ftp.end();
+        });
+
+        ftp.connect({
+            ...this.FTPOptions,
+        });
+    }
+	
+	moveDir(ftp, self, path) {
+        //self.curDirectory=path;
+        ftp.cwd(path, function (err) {
+            if (err) {
+                console.warn('Error while moving to directory', err);
+                console.log('Path: ' + path);
+                self.reset();
+                throw err;
+            }
+        });
+
+    }
 	
 }
 
