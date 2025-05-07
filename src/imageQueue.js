@@ -3,6 +3,7 @@ class ImageData {
 		this.path = path;
 		this.filename = filename;
 		this.FTPOptions = FTPOptions
+		//test commit
 	}
 	
 	get path() {
