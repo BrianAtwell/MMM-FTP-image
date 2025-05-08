@@ -127,6 +127,8 @@ class PlainFTPQueue extends ImageQueue {
 			Increment();
 		}
 		
+		this.connectFTPServer('get');
+		
 		return false;
 	}
 	
@@ -161,7 +163,6 @@ class PlainFTPQueue extends ImageQueue {
                 break;
             case 'get':
                 self.dirChangeAlgo(ftp, self, type);
-                self.sendBase64Img(ftp, self);
                 //self.saveCurFile(self);
                 break;
             default:
@@ -213,6 +214,10 @@ class PlainFTPQueue extends ImageQueue {
             self.moveDir(ftp, self, path);
         }
     }
+	
+	genImgObj()
+	{
+	}
 
     moveDir(ftp, self, path) {
         //self.curDirectory=path;
@@ -294,6 +299,8 @@ class PlainFTPQueue extends ImageQueue {
     }
 	
 	restart() {
+		this.incrementError++;
+		
 		this.dirIndex = 0;
 		this.dirPathVisited = [];
 		this.dirNameList = [];
