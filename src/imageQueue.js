@@ -18,7 +18,27 @@ class ImageData {
 		connectFTPServer();
 	}
 	
-	async sendBase64Img(ftp, self, streamFunc) {
+	error() {
+		self.reset();
+		ftp.end();
+	}
+	
+	sendBase64Img(fileName, stream) {
+		self.streamToBase64(stream, ftp)
+			.then(function (res) {
+				self.imgBase64 = {
+					base64: res,
+					mimeType: self.getMimeType(fileName),
+				};
+			})
+			.catch(function (err) {
+				console.warn('Error while converting stream to base64', err);
+				imgObject.error();
+				throw new Error(err);
+			});
+	}
+	
+	async sendImgStream(ftp, self, streamFunc) {
 		Log.log("SendBase64Img file: "+fileName);
 		await new Promise((resolve, reject) => {
 			ftp.get(self.fileName, function (err, stream) {
@@ -30,21 +50,9 @@ class ImageData {
 				}
 				
 				streamFunc(fileName, stream);
+				resolve();
 
-				self.streamToBase64(stream, ftp)
-					.then(function (res) {
-						self.imgBase64 = {
-							base64: res,
-							mimeType: self.getMimeType(fileName),
-						};
-						resolve();
-					})
-					.catch(function (err) {
-						console.warn('Error while converting stream to base64', err);
-						self.reset();
-						ftp.end();
-						throw new Error(err);
-					});
+				
 			});
 		});
 
