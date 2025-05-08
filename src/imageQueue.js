@@ -1,8 +1,9 @@
 class ImageData {
-	constructor(path, filename, FTPOptions) {
+	constructor(path, filename, FTPOptions, parentQueue) {
 		this.path = path;
 		this.filename = filename;
 		this.FTPOptions = FTPOptions
+		this.parentQueue = parentQueue;
 		//test commit
 	}
 	
@@ -18,45 +19,41 @@ class ImageData {
 		connectFTPServer();
 	}
 	
-	error() {
-		self.reset();
+	reset() {
+		self.parentQueue.reset();
+	}
+	
+	end() {
 		ftp.end();
 	}
 	
-	sendBase64Img(fileName, stream) {
-		self.streamToBase64(stream, ftp)
-			.then(function (res) {
-				self.imgBase64 = {
-					base64: res,
-					mimeType: self.getMimeType(fileName),
-				};
-			})
-			.catch(function (err) {
-				console.warn('Error while converting stream to base64', err);
-				imgObject.error();
-				throw new Error(err);
-			});
-	}
-	
-	async sendImgStream(ftp, self, streamFunc) {
+	async sendImgStream(ftp, self, streamPromiseFunc) {
 		Log.log("SendBase64Img file: "+fileName);
 		await new Promise((resolve, reject) => {
 			ftp.get(self.fileName, function (err, stream) {
 				if (err) {
 					console.warn('Error while getting file', err);
 					reject(err);
-
 					self.reset();
 				}
 				
-				streamFunc(fileName, stream);
-				resolve();
+				streamPromiseFunc(fileName, stream)
+					.then(function (res) {
+						resolve();
+					})
+					.catch(function (err) {
+					console.warn('Error while converting stream to base64', err);
+					self.reset();
+					self.end();
+					throw new Error(err);
+				});
+				
 
 				
 			});
 		});
 
-		self.sendSocketNotification('FTP_IMG_BASE64', self.imgBase64);
+		//self.sendSocketNotification('FTP_IMG_BASE64', self.imgBase64);
 	}
 	
 	connectFTPServer() {

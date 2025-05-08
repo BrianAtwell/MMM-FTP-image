@@ -415,38 +415,30 @@ module.exports = NodeHelper.create({
 		ftp.list(ftpList);
 	},
 
-	sendBase64Img: async function (ftp, self, payload) {
+	sendBase64Img: async function (self, imgObject) {
 		Log.log("SendBase64Img file: "+payload.fileName);
-		await new Promise((resolve, reject) => {
-			ftp.get(payload.fileName, function (err, stream) {
-				if (err) {
-					console.warn('Error while getting file', err);
-					reject(err);
-
-					self.reset();
-				}
-
-				self.streamToBase64(stream, ftp)
-					.then(function (res) {
-						self.imgBase64 = {
-							base64: res,
-							mimeType: self.getMimeType(payload.fileName),
-						};
-						resolve();
-					})
-					.catch(function (err) {
-						console.warn('Error while converting stream to base64', err);
-						self.reset();
-						ftp.end();
-						throw new Error(err);
-					});
+		
+		imgObject.sendImgStream( function(res) {
+			lPromise = self.streamToBase64(stream, ftp)
+			.then(function (res) {
+				self.imgBase64 = {
+					base64: res,
+					mimeType: self.getMimeType(fileName),
+				};
+				self.sendSocketNotification('FTP_IMG_BASE64', self.imgBase64);
+			})
+			.catch(function (err) {
+				console.warn('Error while converting stream to base64', err);
+				imgObject.reset();
+				throw new Error(err);
 			});
+			return lPromise;
 		});
+		
 
-		self.sendSocketNotification('FTP_IMG_BASE64', self.imgBase64);
 	},
 
-	streamToBase64: function (stream, ftp) {
+	streamToBase64: function (stream, imgObject) {
 		return new Promise((resolve, reject) => {
 			const base64 = new Base64Encode();
 
@@ -458,12 +450,12 @@ module.exports = NodeHelper.create({
 				.pipe(base64)
 				.pipe(ConcatStream(cbConcat))
 				.once('close', function () {
-					ftp.end();
+					imgObject.end();
 				})
 				.on('error', error => {
 					console.warn('Error while piping stream', error);
 					reject(error);
-					self.reset();
+					imgObject.reset();
 				});
 		});
 	},
