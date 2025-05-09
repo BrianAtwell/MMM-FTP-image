@@ -217,6 +217,8 @@ class PlainFTPQueue extends ImageQueue {
 	
 	genImgObj()
 	{
+		
+		return new ImageData(this.imgNameList[this.curImageIdx]);
 	}
 
     moveDir(ftp, self, path) {
