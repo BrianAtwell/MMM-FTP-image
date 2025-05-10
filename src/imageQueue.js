@@ -1,9 +1,11 @@
+
+
 class ImageData {
-	constructor(path, filename, FTPOptions, parentQueue) {
+	constructor(path, filename, FTPOptions, resetFunc) {
 		this.path = path;
 		this.filename = filename;
 		this.FTPOptions = FTPOptions
-		this.parentQueue = parentQueue;
+		this.resetFunc = resetFunc;
 		//test commit
 	}
 	
@@ -20,7 +22,7 @@ class ImageData {
 	}
 	
 	reset() {
-		self.parentQueue.reset();
+		this.resetFunc();
 	}
 	
 	end() {
@@ -118,6 +120,7 @@ class PlainFTPQueue extends ImageQueue {
 		this.incrementError=0;
 		
 		this.nodeHelper = nodeHelper;
+		this.imgObj = null;
 		
     }
 	
@@ -127,9 +130,19 @@ class PlainFTPQueue extends ImageQueue {
 			Increment();
 		}
 		
-		this.connectFTPServer('get');
-		
-		return false;
+		return this.imgObj;
+	}
+	
+	IncrementDir() {
+		this.dirIndex++;
+		if (
+			this.dirIndex > this.dirNameList.length
+		) {
+			//self.dirIndex = -1;
+			//self.dirPathVisited = [];
+			//Log.log("command 'get'");
+			this.restart();
+		}
 	}
 	
 	Increment() {
@@ -145,8 +158,13 @@ class PlainFTPQueue extends ImageQueue {
 			{
 				
 				this.connectFTPServer('list');
+				if(this.imgNameList.length == 0)
+				{
+					IncrementDir();
+				}
 			}
 		}
+		this.imgObj = genImgObj();
 		
 	}
 
@@ -157,12 +175,16 @@ class PlainFTPQueue extends ImageQueue {
         ftp.on('ready', function () {
             switch (type) {
             case 'list':
-                self.dirChangeAlgo(ftp, self, type);
+				if (self.getPath(self, type)) {
+					self.moveDir(ftp, self, path);
+				}
                 self.getPathList(ftp, self);
                 //self.saveDirList(self);
                 break;
             case 'get':
-                self.dirChangeAlgo(ftp, self, type);
+                if (self.getPath(self, type)) {
+					self.moveDir(ftp, self, path);
+				}
                 //self.saveCurFile(self);
                 break;
             default:
@@ -177,7 +199,7 @@ class PlainFTPQueue extends ImageQueue {
         });
     }
 
-    dirChangeAlgo(ftp, self, type) {
+    getPath(self, type) {
         let path = null;
 
         if (self.dirIndex > 0) {
@@ -187,15 +209,6 @@ class PlainFTPQueue extends ImageQueue {
 
             if (type === 'list') {
                 self.dirPathVisited.push(self.dirNameList[self.dirIndex - 1].name);
-            }
-
-            if (
-                self.dirPathVisited.length > self.dirNameList.length &&
-                type === 'get' &&
-                self.finishAllImgInCurrentDirectory) {
-                //self.dirIndex = -1;
-                //self.dirPathVisited = [];
-                self.reset();
             }
         }
         // First call and defaultDirPath is defined
@@ -209,16 +222,14 @@ class PlainFTPQueue extends ImageQueue {
             path = self.defaultDirPath;
             //Log.log('MMM-FTP-image module End all directory has been visited.');
         }
-
-        if (path) {
-            self.moveDir(ftp, self, path);
-        }
+		
+		return path;
     }
 	
 	genImgObj()
 	{
-		
-		return new ImageData(this.imgNameList[this.curImageIdx]);
+		let path = self.getPath(self, type);
+		return new ImageData(path, this.imgNameList[this.curImageIdx], FTPOptions, this.reset);
 	}
 
     moveDir(ftp, self, path) {
