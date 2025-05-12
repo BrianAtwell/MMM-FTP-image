@@ -16,15 +16,12 @@ Module.register('MMM-FTP-image', {
 		imgChangeInterval: 10000, // Type: number (ms)
 	},
 
-	imgNameList: [], // Type: Array<{ mimeType: string; base64: string }>
 	imgBase64: new Object(), // Type: { base64: string; mimeType: string }
-	imageDisplayedNumber: 0,
 
 	imageLoadFinished: false,
-	finishAllImgInCurrentDirectory: false,
-	
-	imgListState: 0,
 
+
+	failTimeoutInstance: null,
 	intervalInstance: null,
 	nextDirIntervalInstance: null,
 
@@ -32,91 +29,24 @@ Module.register('MMM-FTP-image', {
 		this.logMessage('Started.');
 		
 		config = this.config;
-		finishAllImgInCurrentDirectory = this.finishAllImgInCurrentDirectory;
-		startObj=this;
-		
 
-		
-		this.imageDisplayedNumber=0;
-
-		this.getListImgNameFromFTPServer();
-		
-		/*
-		// Send FTP_IMG for get img from FTP server
-		this.sendSocketNotification('LOAD_PREVIOUS_INDEX_CALL', {
-			defaultDirPath: this.config.defaultDirPath,
-			dirPathsAuthorized: this.config.dirPathsAuthorized,
-			finishAllImgInCurrentDirectory: this.finishAllImgInCurrentDirectory,
-		});
-		*/
 
 	},
 
 	socketNotificationReceived: function (notification, payload) {
 		switch (notification) {
-			case 'FTP_IMG_LIST_NAME':
-				this.imgListState=0;
-				this.logMessage('Images list received !');
-				this.imgNameList = payload;
-				
-				console.log(payload);
-				
-
-				if (!this.imageLoadFinished || this.finishAllImgInCurrentDirectory) {
-					this.logMessage('scheduleImgUpdateInterval ImgList !');
-					if(this.scheduleImgUpdateInterval() == false)
-					{
-						clearInterval(this.intervalInstance);
-						clearInterval(this.nextDirIntervalInstance);
-
-						// Wait 10s before call next directory
-						this.nextDirIntervalInstance = setTimeout(() => {
-							console.log("Next Directory");
-							this.imgNameList = [];
-							this.finishAllImgInCurrentDirectory = true;
-							this.sendSocketNotification('FTP_IMG_CALL_NEXT_DIR');
-							this.getListImgNameFromFTPServer();
-						}, this.config.imgChangeInterval);
-						return;
-					}
-					this.finishAllImgInCurrentDirectory = false;
-				}
-
-				break;
 
 			case 'FTP_IMG_BASE64':
 				this.logMessage('Images received !');
+				this.IncrementImageIndex();
 				this.imgBase64 = payload;
-				this.incrementImageIndex();
 				this.updateDom();
 				break;
 				
-			case 'LOAD_PREVIOUS_INDEX':
-				console.log('LOAD_PREVIOUS_INDEX');
-				this.imageDisplayedNumber = Number(payload);
-				
-				/*
-				if(this.imgListState == 0)
-				{
-					this.imgListState=1;
-					this.sendSocketNotification('FTP_IMG_CALL_LIST', {
-						defaultDirPath: this.config.defaultDirPath,
-						dirPathsAuthorized: this.config.dirPathsAuthorized,
-						finishAllImgInCurrentDirectory: this.finishAllImgInCurrentDirectory,
-					});
-				}
-				*/
-				
-				this.getListImgNameFromFTPServer(false);
-				break;
 
 			case 'RESET':
 				this.logMessage('RESET');
 				this.imageLoadFinished = false;
-				this.finishAllImgInCurrentDirectory = true;
-				this.imgNameList = [];
-				this.imageDisplayedNumber = 0;
-				this.imgListState=0;
 				clearInterval(this.intervalInstance);
 				//clearInterval(this.nextDirIntervalInstance);
 				this.getListImgNameFromFTPServer();
@@ -134,21 +64,34 @@ Module.register('MMM-FTP-image', {
 			wrapper.innerHTML = this.translate(this.error);
 		}
 
+		const image = this.imgBase64;
+		
 		if (!this.imageLoadFinished) {
 			wrapper.innerHTML = this.translate('LOADING');
 			return wrapper;
 		}
-
-		const image = this.imgBase64;
 
 		if (!image) {
 			this.logMessage(`Could not load image (index: ${this.imageDisplayedNumber})`);
 			wrapper.innerHTML = this.translate('ERROR LOADING');
 			return wrapper;
 		}
+		else
+		{
+			this.imageLoadFinished=true;
+		}
 
 		wrapper.appendChild(this.createImageElement(image));
 		return wrapper;
+	},
+	
+	IncrementImageIndex: function () {
+		this.sendSocketNotification('FTP_NEXT_IMG_CALL', {});
+	},
+	
+	getImageFromFTPServer: function () {
+		// Send FTP_IMG for get img from FTP server
+		this.sendSocketNotification('FTP_IMG_CALL_BASE64', {});
 	},
 
 	/**
@@ -189,87 +132,18 @@ Module.register('MMM-FTP-image', {
 	scheduleImgUpdateInterval: function () {
 		this.logMessage(`Scheduled update interval (${this.config.imgChangeInterval / 1000}s)...`);
 
-		const payload = {
-			defaultDirPath: this.config.defaultDirPath,
-			dirPathsAuthorized: this.config.dirPathsAuthorized,
-			finishAllImgInCurrentDirectory: this.finishAllImgInCurrentDirectory,
-		};
-		
-		lFileName=undefined;
-		
-		// When the list is empty from an empty directory or possibilly a failed ftp it will produce and exception.
-		// We can avoid that with try and catch or if statement.
-		if(this.imageDisplayedNumber != undefined && this.imgNameList  != undefined && this.imgNameList[this.imageDisplayedNumber] != undefined && 'name' in this.imgNameList[this.imageDisplayedNumber])
-		{
-			//this.logMessage('Name is undefined Img# ' + this.imageDisplayedNumber+ ' imgNameList \'' + this.imgNameList+"'");
-			//this.getListImgNameFromFTPServer();
-			//return;
-			
-			lFileName = this.imgNameList[this.imageDisplayedNumber]['name'];
-			
-		}
-		
-		/* //Alternate to the if statement.
-		try{
-			lFileName = this.imgNameList[this.imageDisplayedNumber]['name'];
-		}
-		catch(error) {
-			this.logMessage('No current image list');
-		}
-		*/
-		
-		if(lFileName == undefined)
-		{
-			return false;
-		}
 		
 		// Get first image
-		this.sendSocketNotification('FTP_IMG_CALL_BASE64', {
-			...payload,
-			fileName: lFileName,
-		});
+		this.sendSocketNotification('FTP_IMG_CALL_BASE64', {});
 
-		
-
-		this.imageLoadFinished = true;
-		this.finishAllImgInCurrentDirectory = false;
 
 		// Set interval to reload image
 		this.intervalInstance = setInterval(() => {
-			if(this.imgNameList.length > this.imageDisplayedNumber)
-			{
-				this.sendSocketNotification('FTP_IMG_CALL_BASE64', {
-					...payload,
-					fileName: this.imgNameList[this.imageDisplayedNumber].name,
+			this.sendSocketNotification('FTP_IMG_CALL_BASE64', {
 				});
-			}
 		}, this.config.imgChangeInterval);
 		
 		return true;
-	},
-
-	incrementImageIndex: function () {
-		this.logMessage(`Current image index: ${this.imageDisplayedNumber}`);
-
-		// if you have a directory that is empty or project files for gimp or photoshop the list will be 0.
-		// So add a check for that.
-		// TODO: test if this will cause a endless loop or other bugs. I think there is a bug producing empty lists.
-		if (this.imageDisplayedNumber === this.imgNameList.length - 1 || this.imgNameList.length == 0) {
-			clearInterval(this.intervalInstance);
-			clearInterval(this.nextDirIntervalInstance);
-
-			// Wait 10s before call next directory
-			this.nextDirIntervalInstance = setTimeout(() => {
-				console.log("Next Directory");
-				this.imgNameList = [];
-				this.finishAllImgInCurrentDirectory = true;
-				this.sendSocketNotification('FTP_IMG_CALL_NEXT_DIR');
-				this.getListImgNameFromFTPServer();
-			}, this.config.imgChangeInterval);
-			return;
-		}
-
-		this.imageDisplayedNumber++;
 	},
 
 	logMessage: function (message, type) {
