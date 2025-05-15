@@ -7,7 +7,7 @@ const ConcatStream = require('concat-stream');
 const { Base64Encode } = require('base64-stream');
 const { ExtensionAuthorized, MimeTypesAuthorized, SaveDirFileName, SaveLastFileName } = require('./src/constants/img-authorized');
 const { ftpOptions} = require('./src/constants/ftp-config');
-const {PlainFTPQueue, ImageData} = require('imageQueue');
+const {PlainFTPQueue, ImageData} = require('./src/imageQueue');
 
 module.exports = NodeHelper.create({
 

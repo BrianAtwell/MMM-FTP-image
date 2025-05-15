@@ -4,7 +4,7 @@ class ImageData {
 	constructor(path, filename, FTPOptions, resetFunc) {
 		this.path = path;
 		this.filename = filename;
-		this.FTPOptions = FTPOptions
+		this.FTPOptions = FTPOptions;
 		this.resetFunc = resetFunc;
 		//test commit
 	}
