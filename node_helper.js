@@ -7,7 +7,9 @@ const ConcatStream = require('concat-stream');
 const { Base64Encode } = require('base64-stream');
 const { ExtensionAuthorized, MimeTypesAuthorized, SaveDirFileName, SaveLastFileName } = require('./src/constants/img-authorized');
 const { ftpOptions} = require('./src/constants/ftp-config');
-const {PlainFTPQueue, ImageData} = require('./src/imageQueue');
+const {PlainFTPQueue, ImageData} = require('./src/imagequeue');
+
+
 
 module.exports = NodeHelper.create({
 
@@ -49,7 +51,7 @@ module.exports = NodeHelper.create({
 	sendBase64Img: async function (self, imgObject) {
 		Log.log("SendBase64Img file: "+payload.fileName);
 		
-		imgObject.sendImgStream( function(res) {
+		imgObject.sendImgStream(this, function(res) {
 			lPromise = self.streamToBase64(stream, ftp)
 			.then(function (res) {
 				self.imgBase64 = {
