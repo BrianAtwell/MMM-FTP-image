@@ -103,6 +103,8 @@ class ImageFTPQueue {
 
 class PlainFTPQueue extends ImageFTPQueue {
     constructor(FTPOptions, nodeHelper) {
+		super(FTPOptions);
+		
 		this.curImageIdx = 0;
 		
 		this.defaultDirPath=null;
@@ -154,7 +156,7 @@ class PlainFTPQueue extends ImageFTPQueue {
 		{
 			this.incrementError=0;
 			this.curImageIdx = 0;
-			while(this.imgNameList.length == 0 && this.incrementError == 0)
+			//while(this.imgNameList.length == 0 && this.incrementError == 0)
 			{
 				
 				this.connectFTPServer('list');

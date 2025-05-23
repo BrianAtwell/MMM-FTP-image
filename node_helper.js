@@ -13,13 +13,14 @@ const {PlainFTPQueue, ImageData} = require('./src/imagequeue');
 
 module.exports = NodeHelper.create({
 
-	imgQueue : new PlainFTPQueue(ftpOptions, self),
+	imgQueue : null,
 	imgObject: null,
 	imgBase64: new Object(), // { base64: string; mimeType: string }
 
 	init: function () {
 		Log.log('MMM-FTP-image module helper initialized.');
 		//this.loadPreviousState(this);
+		imgQueue = new PlainFTPQueue(ftpOptions, this);
 	},
 	
 	start: function() {
