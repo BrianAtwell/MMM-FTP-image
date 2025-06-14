@@ -29,7 +29,7 @@ Module.register('MMM-FTP-image', {
 		this.logMessage('Started.');
 		
 		config = this.config;
-
+		this.getImageFromFTPServer();
 
 	},
 

@@ -1,36 +1,50 @@
-
+const FTPClient = require('ftp');
+const Log = require('logger');
+const { ExtensionAuthorized, MimeTypesAuthorized, SaveDirFileName, SaveLastFileName } = require('./constants/img-authorized');
 
 class ImageData {
 	constructor(path, filename, FTPOptions, resetFunc) {
-		this.path = path;
-		this.filename = filename;
+		this.lPath = path;
+		this.lFilename = filename;
 		this.FTPOptions = FTPOptions;
 		this.resetFunc = resetFunc;
 		//test commit
 	}
 	
 	get path() {
-		return this.path;
+		return this.lPath;
+	}
+	
+	set path(newPath) {
+		this.lPath=newPath;
 	}
 	
 	get filename() {
-		return this.filename;
+		return this.lFilename;
+	}
+	
+	set filename(newFileName) {
+		this.lFilename=newFileName;
 	}
 	
 	getFile() {
-		connectFTPServer();
+		this.connectFTPServer();
 	}
 	
 	reset() {
 		this.resetFunc();
 	}
 	
-	end() {
+	end(ftp) {
 		ftp.end();
 	}
 	
-	async sendImgStream(ftp, self, streamPromiseFunc) {
-		Log.log("SendBase64Img file: "+fileName);
+	async sendImgStream(streamPromiseFunc) {
+		this.connectFTPServer(streamPromiseFunc);
+	}
+	
+	async sendImgStreamHelper(self, ftp, streamPromiseFunc) {
+		Log.log("Line 47 SendBase64Img file: "+self.fileName);
 		await new Promise((resolve, reject) => {
 			ftp.get(self.fileName, function (err, stream) {
 				if (err) {
@@ -39,14 +53,14 @@ class ImageData {
 					self.reset();
 				}
 				
-				streamPromiseFunc(fileName, stream)
+				streamPromiseFunc(self.fileName, stream)
 					.then(function (res) {
 						resolve();
 					})
 					.catch(function (err) {
 					console.warn('Error while converting stream to base64', err);
 					self.reset();
-					self.end();
+					self.end(ftp);
 					throw new Error(err);
 				});
 				
@@ -58,13 +72,13 @@ class ImageData {
 		//self.sendSocketNotification('FTP_IMG_BASE64', self.imgBase64);
 	}
 	
-	connectFTPServer() {
+	connectFTPServer(streamPromiseFunc) {
         const ftp = new FTPClient();
         const self = this;
 
         ftp.on('ready', function () {
             self.moveDir(ftp, self, self.path);
-            self.sendBase64Img(ftp, self);
+            self.sendImgStreamHelper(self, ftp, streamPromiseFunc);
 
             ftp.end();
         });
@@ -129,7 +143,9 @@ class PlainFTPQueue extends ImageFTPQueue {
 	Peek() {
 		if(this.imgNameList.length == 0)
 		{
-			Increment();
+			this.connectFTPServer('list');
+			this.imgObj = this.genImgObj();
+			//this.Increment();
 		}
 		
 		return this.imgObj;
@@ -162,11 +178,11 @@ class PlainFTPQueue extends ImageFTPQueue {
 				this.connectFTPServer('list');
 				if(this.imgNameList.length == 0)
 				{
-					IncrementDir();
+					this.IncrementDir();
 				}
 			}
 		}
-		this.imgObj = genImgObj();
+		this.imgObj = this.genImgObj();
 		
 	}
 
@@ -230,8 +246,8 @@ class PlainFTPQueue extends ImageFTPQueue {
 	
 	genImgObj()
 	{
-		let path = self.getPath(self, type);
-		return new ImageData(path, this.imgNameList[this.curImageIdx], FTPOptions, this.reset);
+		let path = this.getPath(this, 'img');
+		return new ImageData(path, this.imgNameList[this.curImageIdx], this.FTPOptions, this.reset);
 	}
 
     moveDir(ftp, self, path) {
@@ -258,7 +274,7 @@ class PlainFTPQueue extends ImageFTPQueue {
             }
         });
 
-        ftpList = function (err, list) {
+        let ftpList = function (err, list) {
             if (err) {
                 console.warn('Error while listing files', err);
                 self.reset();

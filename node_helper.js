@@ -29,16 +29,17 @@ module.exports = NodeHelper.create({
 	},
 
 	socketNotificationReceived: function (notification, webPayload) {
-		payload = this.createPayload(webPayload);
 		switch (notification) {
 
 			case 'FTP_NEXT_IMG_CALL':
-				imgQueue.Increment();
+				Log.log("FTP_NEXT_IMG_CALL");
+				//imgQueue.Increment();
 				break;
 			case 'FTP_IMG_CALL_BASE64':
+				Log.log("FTP_IMG_CALL_BASE64");
 				this.imgBase64 = new Object();
 				this.imgObject = imgQueue.Peek();
-				sendBase64Img(this, this.imgObject);
+				this.sendBase64Img(this, this.imgObject);
 				break;
 			case 'PRINT_LIST':
 				for(var i = 0; i < this.dirNameList.length; i++)
@@ -50,7 +51,7 @@ module.exports = NodeHelper.create({
 	},
 
 	sendBase64Img: async function (self, imgObject) {
-		Log.log("SendBase64Img file: "+payload.fileName);
+		Log.log("SendBase64Img file: ");
 		
 		imgObject.sendImgStream(this, function(res) {
 			lPromise = self.streamToBase64(stream, ftp)
